@@ -1,0 +1,162 @@
+[
+  {
+    "question": "What permissions are required to access the \"Set app property (Forge)\" API?",
+    "ground_truth": "Only Forge apps can make this request, and the API can only be accessed using asApp() requests from Forge.",
+    "prediction": "To access the \"Set app property (Forge)\" API, you need the following permissions:\n\n1. The \"Set app property (Forge)\" permission.\n2. The \"Manage apps\" permission.\n\nThese permissions are required to ensure that only authorized users can modify app properties.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_68"
+  },
+  {
+    "question": "What permissions are required to edit an issue in the provided API documentation?",
+    "ground_truth": "To edit an issue, the following permissions are required:",
+    "prediction": "To edit an issue in the provided API documentation, the following permissions are required:\n\n1. The user must have the \"Issue Edit\" permission for the issue they are trying to edit. This permission can be granted by the project or issue Owner, or by a project or issue admin.\n\n2. The user must have the \"Edit issues\" permission for the project they are trying to edit the issue in. This permission can be granted by the project or issue Owner, or by a project or issue admin.\n\n3. The user must have the \"Edit issues\" permission for the issue type they are trying to edit the issue in. This permission can be granted by the issue type Owner, or by a project or issue admin.\n\n4. The user must have the \"Edit issues\" permission for the project or issue type they are trying to edit the issue in. This permission can be granted by the project or issue Owner, or by",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_398"
+  },
+  {
+    "question": "What parameters can be used to filter the audit records returned by the \"Get audit records\" request?",
+    "ground_truth": "The parameters that can be used to filter audit records are \"filter\", \"from\", and \"to\". The \"filter\" parameter accepts strings to match with audit field content, separated by spaces. The \"from\" and \"to\" parameters specify the date and time range within which the returned audit records must have been created.",
+    "prediction": "The \"Get audit records\" request can be filtered using the following parameters:\n\n- `startDate`: The earliest date from which to retrieve audit records.\n- `endDate`: The latest date up to which to retrieve audit records.\n- `userId`: The ID of the user whose audit records are to be retrieved.\n- `groupId`: The ID of the group whose audit records are to be retrieved.\n- `projectId`: The ID of the project whose audit records are to be retrieved.\n- `issueId`: The ID of the issue whose audit records are to be retrieved.\n- `issueTypeId`: The ID of the issue type whose audit records are to be retrieved.\n- `issueStatusId`: The ID of the issue status whose audit records are to be retrieved.\n- `issuePriorityId`: The ID of the issue priority whose audit records are to be retrieved.\n- `",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_71"
+  },
+  {
+    "question": "How can I retrieve another user's global permissions using the UserPermissions object?",
+    "ground_truth": "To access another user's global permissions, you can use the User object by creating a new instance with the accountId of the user you want to query. Once you have the User object, you can access the global permissions by calling the permissions.global property on the User object, like this: new User(accountId).permissions.global.",
+    "prediction": "To retrieve another user's global permissions, you can use the `getGlobalPermissions` method of the `UserPermissions` object. This method returns a `Permissions` object that represents the global permissions of the user. Here's an example code snippet:\n\n```java\nUserPermissions userPermissions = new UserPermissions();\nPermissions globalPermissions = userPermissions.getGlobalPermissions();\n```\n\nIn the above code, we first create a new instance of the `UserPermissions` class. Then, we call the `getGlobalPermissions` method on this instance to retrieve the global permissions of the user. The returned `Permissions` object can be used to check if the user has specific permissions or perform other operations based on their global permissions.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jira-expressions-type-reference/",
+    "source_title": "Jira expressions types",
+    "chunk_id": "recursive_28"
+  },
+  {
+    "question": "How can you retrieve a list of contexts for a specific custom field in Jira Cloud?",
+    "ground_truth": "To retrieve a list of contexts for a specific custom field in Jira Cloud, you can use the `Get custom field contexts` resource. This requires sending a GET request to the endpoint `{{protocol}}://{{host}}/rest/api/3/field/{fieldId}/context` with the custom field ID included in the URL. You can also use query parameters like `isAnyIssueType`, `isGlobalContext`, `startAt`, and `maxResults` to filter and paginate the results. The `Accept` header should be set to `application/json` to receive the response in JSON format.",
+    "prediction": "To retrieve a list of contexts for a specific custom field in Jira Cloud, you can use the Jira REST API. Here's an example of how you can do it using curl:\n\n```\ncurl -u [username]:[apiToken] -X GET -H \"Content-Type: application/json\" https://[instance].atlassian.net/rest/api/3/field/customfieldid/contexts\n```\n\nReplace `[username]` with your Jira username, `[apiToken]` with your Jira API token, and `[instance]` with the URL of your Jira instance. Replace `customfieldid` with the ID of the custom field you want to retrieve contexts for. This will return a JSON response with a list of contexts for the specified custom field.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_180"
+  },
+  {
+    "question": "What must be provided to the \"Find users assignable to issues\" API call if neither `query` nor `accountId` is specified?",
+    "ground_truth": "If neither the `query` nor the `accountId` is specified, the API call requires a `username` to be provided. However, the `username` parameter is no longer available and has been deprecated. Users are encouraged to refer to the deprecation notice for details on how to proceed with the API migration.",
+    "prediction": "If neither `query` nor `accountId` is specified in the \"Find users assignable to issues\" API call, the API will return an error indicating that one of these parameters is required.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_598"
+  },
+  {
+    "question": "What JSON object is included in the request body to update the default screen scheme of an issue type screen scheme in Jira?",
+    "ground_truth": "The JSON object included in the request body is:",
+    "prediction": "The JSON object included in the request body to update the default screen scheme of an issue type screen scheme in Jira is as follows:\n\n```json\n{\n  \"screenScheme\": {\n    \"id\": \"12345\",\n    \"name\": \"New Screen Scheme\",\n    \"description\": \"This is a new screen scheme.\"\n  },\n  \"issueType\": {\n    \"id\": \"12345\",\n    \"name\": \"New Issue Type\"\n  }\n}\n```\n\nThis JSON object specifies the new screen scheme and the issue type that it should be associated with. The `screenScheme` object contains the `id`, `name`, and `description` of the new screen scheme, while the `issueType` object contains the `id` and `name` of the issue type.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_341"
+  },
+  {
+    "question": "What criteria can be used to filter the list of field configurations returned by the Atlassian API?",
+    "ground_truth": "The list of field configurations can be filtered based on a combination of criteria such as: a list of field configuration item IDs, whether the field configuration is a default, or whether the field configuration name or description contains a query string. Only field configurations used in company-managed (classic) projects are returned.",
+    "prediction": "The Atlassian API allows you to filter field configurations based on various criteria. Some of the common filters include:\n\n1. Field type: You can filter field configurations by their type, such as text, number, date, etc.\n2. Field name: You can filter field configurations by their name.\n3. Field description: You can filter field configurations by their description.\n4. Field visibility: You can filter field configurations by their visibility, such as public, private, or restricted.\n5. Field order: You can filter field configurations by their order in the list.\n\nThese filters can be combined to create more specific queries. For example, you could filter field configurations by type and visibility to only return public text fields.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_224"
+  },
+  {
+    "question": "How many fields and projects can be associated in a single request when using the \"Create associations\" resource?",
+    "ground_truth": "Up to 50 fields and up to 100 projects can be associated in a single request when using the \"Create associations\" resource.",
+    "prediction": "The \"Create associations\" resource allows you to create up to 100 fields and 100 projects in a single request.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_173"
+  },
+  {
+    "question": "What permissions are required to use the \"Associate security scheme to project\" API, and where can they be found?",
+    "ground_truth": "To use the \"Associate security scheme to project\" API, the required permission is \"Administer Jira.\" This permission can be found at the global permissions documentation on the Atlassian Confluence site, with the URL https://confluence.atlassian.com/x/x4dKLg.",
+    "prediction": "To use the \"Associate security scheme to project\" API, you need the following permissions:\n\n1. **Project Administrator**: This permission allows you to manage projects and their associated security schemes.\n2. **Security Scheme Administrator**: This permission allows you to manage security schemes and their association with projects.\n\nThese permissions can be found in the Jira Cloud security settings. To access them, follow these steps:\n\n1. Log in to Jira Cloud.\n2. Click on your profile icon in the top right corner and select \"Security settings.\"\n3. Under \"Permissions,\" you will find the \"Project Administrator\" and \"Security Scheme Administrator\" permissions.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_314"
+  },
+  {
+    "question": "What are the limitations of OAuth 2.0 (3LO) resource-level grants for apps installed on multiple sites?",
+    "ground_truth": "The limitations of OAuth 2.0 (3LO) resource-level grants are that the consent screen requires the user to select the site where they want to install the app, which can be confusing for users who want to install the app on multiple sites. To install the app on multiple sites, the user would have to repeat the installation process multiple times. Additionally, an admin cannot revoke a user's access to an app through the Connected Apps user screen because the OAuth grant given by the user is between the app and the user. The only way to restrict a user's access is by uninstalling the app.",
+    "prediction": "OAuth 2.0 (3LO) resource-level grants are designed to provide apps with limited access to resources on behalf of the user. However, there are limitations when it comes to apps installed on multiple sites. One major limitation is that the app must be installed on the same site as the resource it wants to access. This means that if an app is installed on multiple sites, it cannot access resources on those sites unless the sites are part of the same organization or have a trust relationship. Additionally, the app must be registered with the resource server and the authorization server, which can be a complex process. Finally, the app must handle the token refresh process correctly to ensure that the user's access to the resource remains secure.",
+    "source_url": "https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/",
+    "source_title": "OAuth 2.0 (3LO) apps",
+    "chunk_id": "recursive_859"
+  },
+  {
+    "question": "Can the Delete custom field options operation be performed on custom field options with cascading options without removing the cascading options first?",
+    "ground_truth": "No, the Delete custom field options operation cannot be performed on custom field options with cascading options without first deleting the cascading options. This operation requires that cascading options be removed before the option itself can be deleted.",
+    "prediction": "No, the Delete custom field options operation cannot be performed on custom field options with cascading options without removing the cascading options first. This is because the cascading options are dependent on the custom field options, and removing the custom field options would also remove the cascading options.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_206"
+  },
+  {
+    "question": "What are the limitations when using the API to move worklogs from one issue to another?",
+    "ground_truth": "When using the API to move worklogs from one issue to another, there are several limitations: You can't move more than 5000 worklogs at once, you can't move worklogs containing an attachment, you can't move worklogs restricted by project roles, no notifications or webhooks/events will be sent for moved worklogs, and no issue history will be recorded for moved worklogs.",
+    "prediction": "When using the API to move worklogs from one issue to another, there are several limitations to consider:\n\n1. **Issue Association**: Worklogs can only be moved between issues that are associated with the same project.\n\n2. **Worklog Status**: Only worklogs with a status of \"open\" can be moved. Worklogs with a status of \"closed\" cannot be moved.\n\n3. **Worklog Type**: Only worklogs of type \"task\" can be moved. Worklogs of other types, such as \"bug\" or \"subtask\", cannot be moved.\n\n4. **Worklog Dependencies**: Worklogs that have dependencies on other worklogs cannot be moved.\n\n5. **Worklog Attachments**: Worklogs with attachments cannot be moved. Attachments must be manually transferred to the new worklog.\n\n6. **Worklog Comments**: Worklogs with comments",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_368"
+  },
+  {
+    "question": "What should the 'state' parameter in the authorization URL be set to for security purposes?",
+    "ground_truth": "For security purposes, the 'state' parameter should be set to a value that is associated with the user you are directing to the authorization URL, such as a hash of the user' presentation. It must be a value that cannot be guessed.",
+    "prediction": "The 'state' parameter in the authorization URL is a security measure to prevent CSRF (Cross-Site Request Forgery) attacks. It should be a unique, random value that is generated on the client side and sent to the server. The server should then verify this value before processing the authorization request. If the value does not match or is missing, the server should reject the request.",
+    "source_url": "https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/",
+    "source_title": "OAuth 2.0 (3LO) apps",
+    "chunk_id": "recursive_850"
+  },
+  {
+    "question": "What are the default settings for a user with a personal account in Jira?",
+    "ground_truth": "The default settings for a user with a personal account in Jira include a self object, accountId with a 1-128 character string that may contain \"-\" or \":\" characters, avatarUrls with 16x16, 24x24, 32x32, and 48x48 images, displayName with a string value containing either the full name or the user's public name, active set to true, timeZone with the user's timezone ID (e.g., America/Los Angeles), and locale with the user's locale language tag.",
+    "prediction": "The default settings for a user with a personal account in Jira typically include:\n\n\n- **Default Project**: The user's default project is usually their personal project, which is often set to \"Personal\" or a similar name.\n\n- **Default Issue Type**: The default issue type is often \"Bug\" or \"Task,\" depending on the company's workflow.\n\n- **Default Issue Status**: The default status is usually \"Open\" or \"In Progress,\" reflecting the initial state of an issue.\n\n- **Default Issue Priority**: The default priority is often set to \"High\" or \"Medium,\" depending on the company's priority system.\n\n- **Default Issue Type**: The default issue type is typically \"Bug\" or \"Task,\" which are common types of issues in Jira.\n\n- **Default Issue Status**: The default status is usually \"Open\" or \"In",
+    "source_url": "https://developer.atlassian.com/cloud/confluence/profile-visibility/",
+    "source_title": "Profile visibility",
+    "chunk_id": "recursive_889"
+  },
+  {
+    "question": "What does the user experience after a successful authorization code exchange in the OAuth 2.0 process?",
+    "ground_truth": "After a successful authorization code exchange, the user is redirected to the app's callback URL with an authorization code provided as a query parameter called 'code'. This code can then be exchanged for an access token, which is described in step 2 of the OAuth 2.0 process.",
+    "prediction": "After a successful authorization code exchange in the OAuth 2.0 process, the user is granted access to the requested resource or service. The authorization server validates the authorization code, exchanges it for an access token, and then the client can use this token to access the user's data or perform actions on their behalf, depending on the permissions granted during the authorization process.",
+    "source_url": "https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/",
+    "source_title": "OAuth 2.0 (3LO) apps",
+    "chunk_id": "recursive_851"
+  },
+  {
+    "question": "What are the responsibilities of an end user in the event of a Security Incident as described in the passage?",
+    "ground_truth": "In the event of a Security Incident, an end user is solely responsible for the investigation, remediation, and their own notifications to affected end users and regulatory authorities, in accordance with applicable laws and industry standards. They must ensure that they have an updated contact name and contact information in their developer account for Security Incidents.",
+    "prediction": "The responsibilities of an end user in the event of a Security Incident, as described in the passage, include reporting the incident to the IT department immediately, refraining from using the affected system until it has been cleared by the IT department, and cooperating with the IT department during the investigation and resolution process.",
+    "source_url": "https://developer.atlassian.com/platform/marketplace/atlassian-developer-terms/",
+    "source_title": "Atlassian Developer Terms",
+    "chunk_id": "recursive_770"
+  },
+  {
+    "question": "What are the permissions required to perform the operation described in the passage?",
+    "ground_truth": "The permissions required to perform the operation are *Administer Jira* global permission, which can be accessed at https://confluence.atlassian.com/x/x4dKLg.",
+    "prediction": "The passage does not provide any information about the operation or the required permissions.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_636"
+  },
+  {
+    "question": "What permissions are required to Update the default data classification level of a project?",
+    "ground_truth": "To Update the default data classification level of a project, the permissions required are *Administer projects* [project permission](https://confluence.atlassian.com/x/yodKLg) for the project and *Administer jira* [global permission](https://confluence.atlassian.com/x/x4dKLg).",
+    "prediction": "To update the default data classification level of a project, you typically need the following permissions:\n\n\n1. **Project Administrator**: This role has the highest level of access and can make changes to the project's settings, including the default data classification level.\n\n2. **Project Manager**: Depending on the system, a Project Manager may have the ability to update the default data classification level if they are granted the necessary permissions by the Project Administrator.\n\n3. **Data Classification Manager**: In some systems, a dedicated Data Classification Manager role may be created to handle all aspects of data classification, including setting default levels for projects.\n\n\nIt's important to note that permissions can vary based on the organization's policies and the specific software or platform being used. Always refer to your organization's documentation or IT department for the exact permissions required.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_483"
+  },
+  {
+    "question": "What permissions are required to browse users and groups on the JIRA platform?",
+    "ground_truth": "To browse users and groups on the JIRA platform, anonymous calls or calls by users without the required permission return empty search results. The required permission is the global permission, which can be found at the following URL: [https://confluence.atlassian.com/x/x4dKLg](https://confluence.atlassian.com/x/x4dKLg).",
+    "prediction": "To browse users and groups on the JIRA platform, you need to have the following permissions:\n\n1. **Browse users**: This permission allows you to view and manage users in JIRA. It is granted to users who have the \"Browse users\" permission level or higher.\n\n2. **Browse groups**: This permission allows you to view and manage groups in JIRA. It is granted to users who have the \"Browse groups\" permission level or higher.\n\nNote that these permissions are part of the JIRA permissions hierarchy and can be granted at different levels, such as project, issue, or organization.",
+    "source_url": "https://developer.atlassian.com/cloud/jira/platform/jiracloud.3.postman.json",
+    "source_title": "Untitled",
+    "chunk_id": "recursive_608"
+  }
+]

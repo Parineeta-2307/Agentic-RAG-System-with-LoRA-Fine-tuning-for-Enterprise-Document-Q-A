@@ -1,0 +1,41 @@
+{
+  "evaluation_type": "Qualitative RAG evaluation",
+  "num_questions": 5,
+  "rag_strategy": "recursive",
+  "retriever": "FAISS + BM25 Hybrid Retrieval",
+  "llm": "Phi-3 + LoRA",
+  "grounding": "Retrieved documentation context supplied to the LLM",
+  "note": "This is a small qualitative evaluation used to verify RAG integration. It is not a statistically representative benchmark.",
+  "results": [
+    {
+      "id": 1,
+      "question": "What permissions are required to access the \"Set app property (Forge)\" API?",
+      "expected_answer": "Only Forge apps can make this request, and the API can only be accessed using asApp() requests from Forge.",
+      "rag_answer": "To access the \"Set app property (Forge)\" API, the app must be a Forge app, and it can only be accessed using \"asApp()\" requests from Forge. Additionally, the app must have the \"write:app-data:forge\" scope, which is now 100% optional and can be omitted."
+    },
+    {
+      "id": 2,
+      "question": "What permissions are required to edit an issue in the provided API documentation?",
+      "expected_answer": "To edit an issue, the following permissions are required:",
+      "rag_answer": "To edit an issue, the user must have the following permissions:\n\n1. *Browse projects* [project permission](https://confluence.atlassian.com/x/yodKLg) for the project containing the issue.\n2. If [issue-level security](https://confluence.atlassian.com/x/J4lKLg) is configured, issue-level security permission to view the issue."
+    },
+    {
+      "id": 3,
+      "question": "What parameters can be used to filter the audit records returned by the \"Get audit records\" request?",
+      "expected_answer": "The parameters that can be used to filter audit records are \"filter\", \"from\", and \"to\". The \"filter\" parameter accepts strings to match with audit field content, separated by spaces. The \"from\" and \"to\" parameters specify the date and time range within which the returned audit records must have been created.",
+      "rag_answer": "The \"Get audit records\" request can be filtered using the `filter` parameter, which contains a list of strings. Each string represents a field that must have at least one match in the following fields: `summary`, `category`, `eventSource`, `objectItem.name` (if the object is a user, the `objectItem.parentName` and `objectItem.typeName` are also available), `changedValues.changedFrom`, `changedValues.changedTo`, and `remoteAddress`. For example, if `filter` contains *managed*, an audit record containing `summary`: \\\"User added to group\\\" and `category`: \\\"group management\\\" is returned."
+    },
+    {
+      "id": 4,
+      "question": "How can I retrieve another user's global permissions using the UserPermissions object?",
+      "expected_answer": "To access another user's global permissions, you can use the User object by creating a new instance with the accountId of the user you want to query. Once you have the User object, you can access the global permissions by calling the permissions.global property on the User object, like this: new User(accountId).permissions.global.",
+      "rag_answer": "To retrieve another user's global permissions using the UserPermissions object, you can use the `global` property of the object. For example, to get your global permissions, write `user.permissions.global`."
+    },
+    {
+      "id": 5,
+      "question": "How can you retrieve a list of contexts for a specific custom field in Jira Cloud?",
+      "expected_answer": "To retrieve a list of contexts for a specific custom field in Jira Cloud, you can use the `Get custom field contexts` resource. This requires sending a GET request to the endpoint `{{protocol}}://{{host}}/rest/api/3/field/{fieldId}/context` with the custom field ID included in the URL. You can also use query parameters like `isAnyIssueType`, `isGlobalContext`, `startAt`, and `maxResults` to filter and paginate the results. The `Accept` header should be set to `application/json` to receive the response in JSON format.",
+      "rag_answer": "To retrieve a list of contexts for a specific custom field in Jira Cloud, you can use the \"Get custom field contexts\" operation. This operation returns a paginated list of contexts for the specified custom field. You can specify the field ID and optionally filter the contexts by issue type or project scope using the `isAnyIssueType` and `isGlobalContext` parameters. The operation requires the \"Administer Jira\" global permission and, if editing workflows, the \"Edit Workflows\" permission."
+    }
+  ]
+}
