@@ -6,10 +6,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 class HFClient:
     def __init__(self, model_name="microsoft/Phi-3-mini-4k-instruct",
-                 temperature: float = 0.1, max_tokens: int = 512):
+                 temperature: float = 0.1, max_tokens: int = 512,
+                 adapter_path: str = None):
         self.model_name = model_name
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.adapter_path = adapter_path
 
         bnb_config = BitsAndBytesConfig(
             load_in_4bit=True,
@@ -21,6 +23,10 @@ class HFClient:
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name, quantization_config=bnb_config, device_map="auto"
         )
+        if adapter_path:
+            from peft import PeftModel
+            print(f"Loading LoRA adapter from {adapter_path} ...")
+            self.model = PeftModel.from_pretrained(self.model, adapter_path)
         print("Loaded.")
 
     def _run_generate(self, messages, temperature):
