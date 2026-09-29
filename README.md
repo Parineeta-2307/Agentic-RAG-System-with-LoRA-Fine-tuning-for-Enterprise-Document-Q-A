@@ -1,189 +1,783 @@
 # Agentic RAG System with LoRA Fine-tuning for Enterprise Document Q&A
 
-A retrieval-augmented question-answering system over Atlassian Jira and Confluence documentation. It combines dense (FAISS, all-MiniLM-L6-v2) and sparse (BM25) retrieval with Reciprocal Rank Fusion, and a Phi-3 Mini generator fine-tuned with QLoRA on a Kaggle T4. The repository contains four chunking strategies, six RAG variants, a retrieval evaluation harness, a results dashboard, and the trained adapter together with a documented list of its shortcomings and a corrected training script (`lora_finetune_v2.py`) that has not yet been run.
+An agentic retrieval-augmented question-answering system over Atlassian Jira and Confluence documentation.
+
+The system combines **dense retrieval using FAISS and all-MiniLM-L6-v2**, **sparse retrieval using BM25**, and **Reciprocal Rank Fusion (RRF)** behind a unified retrieval interface. A Phi-3 Mini generator is fine-tuned with **QLoRA/LoRA** on a synthetic enterprise QA dataset.
+
+An agentic control layer extends the standard RAG pipeline with retrieval selection, keyword search, query clarification, corrective retrieval, and self-critique. The repository also contains four chunking strategies, multiple RAG variants, retrieval evaluation, RAGAS-based evaluation infrastructure, a Streamlit dashboard, and the trained LoRA adapter.
+
+> **Agentic** here refers to the corrective and self-critique RAG variants, where the system can evaluate retrieved context, rewrite or clarify weak queries, and check generated answers before responding; tool routing provides the control layer between retrieval and generation.
+
+---
 
 ## Results
 
-### Retrieval (recursive chunking, 927 chunks, 500 synthetic QA pairs)
+### Retrieval evaluation
 
-Each QA pair was generated from one chunk, and that chunk is the single ground-truth match. Reproduce with `python eval_retrieval.py` (CPU); raw output is in [`results/retrieval_eval.json`](results/retrieval_eval.json).
+The primary retrieval evaluation uses **recursive chunking**, with 927 chunks and 500 synthetic QA pairs.
 
-| Method | Recall@1 | Recall@3 | Recall@5 | Recall@10 | MRR@10 | Search latency (ms/query) |
-|---|---:|---:|---:|---:|---:|---:|
-| Dense (FAISS, MiniLM) | 0.352 | 0.514 | 0.592 | 0.648 | 0.450 | 0.31 |
-| BM25 | 0.480 | 0.708 | 0.784 | 0.854 | 0.610 | 8.20 |
-| Hybrid (RRF, k=60, fetch_k=30) | 0.464 | 0.648 | 0.716 | 0.856 | 0.581 | 8.60 |
-| Hybrid, production setting (top_k=5, fetch_k=15) | – | – | 0.750 | – | – | 8.52 |
+Each QA pair was generated from one chunk, and that chunk is treated as the single ground-truth match.
 
-Reading the table:
-
-- **BM25 is the strongest method on this evaluation set.** Equal-weight RRF fusion does not beat it at Recall@1/3/5 and is level with it at Recall@10 (0.856 vs 0.854).
-- The QA questions were generated from the chunk text, which favours lexical matching, so this set is likely to be biased toward BM25. Only one chunk counts as correct, and overlapping chunks that also contain the answer are scored as misses, so all recall numbers are lower bounds.
-- Latencies time the index search only. Embedding a query with MiniLM costs an additional 23.1 ms on this CPU (an Intel Core i3-10110U), which applies to dense and hybrid retrieval.
-- The QA set is dominated by one source (see below). Recall@5 by source:
-
-| Subset | n | Dense | BM25 | Hybrid (RRF) |
-|---|---:|---:|---:|---:|
-| Jira Postman JSON | 349 | 0.496 | 0.728 | 0.645 |
-| All other pages | 151 | 0.815 | 0.914 | 0.881 |
-
-### Corpus and indices
-
-- 60 scraped pages, 1,457,978 characters (about 1.46M). One file, the Jira Cloud Postman collection (`jiracloud.3.postman.json`), is 973,400 characters, roughly 67% of the corpus.
-- Chunks per strategy: fixed 818, recursive 927, semantic 4,287, hierarchical 2,193 (390 parents and 1,803 children).
-- Embeddings: all-MiniLM-L6-v2, 384 dimensions, L2-normalised, `IndexFlatIP`.
-- Synthetic QA set: 500 pairs from 48 distinct source URLs, 349 of them (69.8%) from the Postman JSON.
-
-### LoRA fine-tuning (saved adapter in `lora_output/`)
-
-| Setting | Value |
-|---|---|
-| Base model | microsoft/Phi-3-mini-4k-instruct, 4-bit NF4 (QLoRA), fp16 compute |
-| LoRA | r=16, alpha=32, dropout=0.05 |
-| Data | 500 synthetic QA pairs (context + question -> answer) |
-| Batch | 4 per device x 4 accumulation = 16 effective |
-| Steps | 160 (5 epochs) |
-| Optimiser | paged AdamW 8-bit, LR 2e-4, cosine schedule |
-| Hardware | Kaggle T4 |
-| Runtime | 3,836 s (about 64 min) |
-| Average training loss | 1.014 |
-| Trainable parameters in saved adapter | 3,145,728 (64 tensors, `o_proj` only; see Known issues) |
-
-## Architecture
-
-```
-Documents (scraped Atlassian/Jira/Confluence docs)
-        |
-        v
-Chunking (4 strategies: fixed, recursive, semantic, hierarchical)
-        |
-        v
-Embeddings (all-MiniLM-L6-v2, 384-dim, L2-normalized)
-        |
-        v
-   FAISS (dense)          BM25 (sparse)
-        |________________________|
-                   |
-          Hybrid retrieval (Reciprocal Rank Fusion, k=60)
-                   |
-                   v
-          Retrieved context
-                   |
-                   v
-      Phi-3 Mini (4-bit), optionally with a LoRA adapter
-                   |
-                   v
-                Answer
-```
-
-`HFClient` loads a LoRA adapter only when `adapter_path` is passed. Before that argument existed, it never loaded one; the dashboard's live-query tab still constructs `HFClient()` without an adapter.
-
-## Evaluation
-
-Both generation evaluations are small and qualitative, and neither is a benchmark.
-
-- **Standalone fine-tuned model** (`lora_output/evaluation_results.json`): 20 questions. The prompt contains the question only (no retrieved context), so answers come from model weights. The training prompts did include context, so this eval prompt differs from the training format.
-- **RAG pipeline** (`lora_output/rag_evaluation_summary.json`): 5 questions, recursive chunking, hybrid retrieval, retrieved context supplied to the model.
-- **All 25 questions come from the training set.** The 20 are QA-set entries 0-19 and the 5 are entries 0-4; the stored reference answers are identical to the training answers. These runs therefore do not measure generalisation.
-
-Observed behaviour:
-
-- Without context, the fine-tuned model produced fluent answers with invented specifics. For "Get audit records" it listed `startDate`, `endDate`, `userId` and `groupId` as filter parameters, where the stored reference names `filter`, `from` and `to`. For "Create associations" it stated a limit of 100 fields, where the reference says 50. Several permission questions were answered with generic role names instead of the documented permissions. On one question it said the passage did not contain the information.
-- With retrieved context, the 5 RAG answers followed the retrieved text more closely, but errors remain. For the Forge "Set app property" question the answer names the scope `write:app-data:forge`, while the retrieved context refers to `write:app-data:jira`.
-- This is the practical case for combining retrieval with the model rather than relying on fine-tuned weights alone. It is an observation from 25 training-set questions, not a measured faithfulness rate.
-
-The other RAG variants (HyDE-style advanced, corrective, multi-query, query decomposition, self-critique) are in `src/rag/` and share the retrieval backend. They have not been benchmarked against each other, so no variant or chunking strategy is claimed to be best. The self-critique variant is a generate-judge-retry loop, not a reproduction of the Self-RAG paper's reflection tokens.
-
-## Known issues
-
-**Fine-tuning**
-
-- **The LoRA adapter only adapts `o_proj`.** Native (transformers) Phi-3 fuses q/k/v into `qkv_proj` and gate/up into `gate_up_proj`, so the configured `q_proj`, `k_proj` and `v_proj` matched nothing. The saved adapter contains 64 tensors (32 layers x A/B for `o_proj`) and 3,145,728 parameters. Applying the v1 target list to a Phi-3 config yields the same count, and the corrected list yields 25,165,824.
-- **Prompt tokens are included in the loss.** `lora_finetune.py` copies `input_ids` to `labels`, so the model is also trained to reproduce the context and question.
-- **Evaluation leakage.** The 20 and 5 evaluation questions are training examples (see Evaluation). No held-out split exists for the saved adapter.
-- **26 answers are truncated.** The QA parser reads one line after `ANSWER:`, so multi-line answers stopped at the first line. 26 of the 500 answers end with `:`.
-- **The evaluation prompt differs from the training prompt.** Training included context; the standalone eval does not.
-
-**Data and retrieval**
-
-- **Postman JSON dominates.** It is about 67% of the corpus characters, 642 of 927 recursive chunks, and 349 of 500 QA pairs. Aggregate numbers mostly describe that file.
-- **Most chunks exceed the embedder's input limit.** all-MiniLM-L6-v2 truncates at 256 tokens. 825 of 927 recursive chunks (89%) are longer, and on average 48% of a chunk's tokens fall beyond the limit, so dense embeddings see only the start of most chunks. This probably contributes to the weak dense results; it has not been isolated experimentally.
-- **Chunk sizes are estimated at 4 characters per token.** The recursive chunks average 1,757 characters and 561 MiniLM word-piece tokens, about 3.1 characters per token on this text, so the nominal 512-token chunk size is not accurate.
-- **The scraper strips newlines.** It joins text with spaces (`get_text(separator=" ")`), so the corpus has no line breaks and recursive chunking never gets to split on paragraphs or lines.
-- **The BM25 tokenizer drops non-ASCII text.** `\b[a-z0-9]+\b` on lower-cased text removes all non-Latin scripts, so Hindi or Tamil documents would produce empty token lists.
-- **Hierarchical parent expansion re-reads `chunks_hierarchical.json` for every retrieved result.**
-- **The scraper does not check `robots.txt`.**
-- BM25 needs a full rebuild on update (no incremental indexing).
-- The synthetic QA set was generated from the chunks themselves and was never validated against human-written questions.
-- The chunker, scraper and BM25 tokenizer have not been changed, because that would invalidate the saved indices.
-
-## Roadmap
-
-- Retrain with `src/llm/lora_finetune_v2.py` (correct target modules, answer-only loss, held-out 425/75 split) and evaluate on the 75 held-out questions.
-- Faithfulness evaluation with RAGAS or claim-level checks against retrieved context.
-- Cross-encoder reranker on the fused candidate list.
-- A tool-routing agent that chooses between `hybrid_search`, `keyword_search` and `ask_clarification`.
-- Unicode-aware tokenization for BM25.
-- Sub-256-token chunks (or a longer-context embedder), and tuned fusion weights, given the results above.
-
-## Project structure
-
-```
-.
-├── config.py
-├── eval_retrieval.py              # dense vs BM25 vs hybrid evaluation (CPU)
-├── dashboard.py                   # Streamlit results dashboard
-├── requirements.txt
-├── data/
-│   ├── raw/scraped_docs.json
-│   ├── processed/                 # chunks, embeddings, FAISS + BM25 indices per strategy
-│   └── synthetic_qa/synthetic_qa_pairs.json
-├── results/retrieval_eval.json
-├── lora_output/                   # adapter trained with lora_finetune.py + eval artifacts
-├── src/
-│   ├── ingestion/                 # scraper.py, chunker.py
-│   ├── embeddings/                # encoder.py
-│   ├── retrieval/                 # faiss_store.py, bm25_store.py, hybrid.py
-│   ├── llm/                       # hf_client.py, lora_finetune.py (v1), lora_finetune_v2.py
-│   ├── rag/                       # naive_rag.py + 5 variants, base_rag.py
-│   └── evaluation/                # synthetic_qa.py, finetuned_eval.py
-```
-
-## Design notes
-
-- **Four chunking strategies, one index each.** Fixed, recursive, semantic and hierarchical (small children for retrieval, larger parents for context) each have their own FAISS and BM25 index. Only the recursive strategy has been evaluated here.
-- **RRF instead of score normalisation.** Cosine similarity and BM25 scores are on different scales, so fusion uses rank: `score(d) = sum 1 / (k + rank(d))` with k=60 from Cormack, Clarke and Buettcher (2009). Both retrievers get equal weight; k and the weights were not tuned.
-- **QLoRA.** The frozen base model is quantised to 4-bit NF4 and low-rank adapters (`W' = W + BA`) are trained on top, which fits on a single Kaggle T4.
-- **Native Phi-3 implementation.** The model loads without `trust_remote_code=True`; enabling it raised a rope-scaling `KeyError: 'type'` on this Phi-3 build.
-
-## How to run
-
-### Retrieval evaluation (CPU, no GPU or Phi-3 needed)
+Reproduce with:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # Windows; use `source .venv/bin/activate` elsewhere
-pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
-pip install sentence-transformers faiss-cpu rank_bm25 numpy tqdm pandas streamlit peft
 python eval_retrieval.py
 ```
 
-The script downloads all-MiniLM-L6-v2 once, prints the results table, and writes `results/retrieval_eval.json`. The committed indices under `data/processed/` are used as they are. Or install the pinned versions with `pip install -r requirements.txt`, which also lists the GPU training packages.
+Raw results are available in [`results/retrieval_eval.json`](https://github.com/Parineeta-2307/Agentic-RAG-System-with-LoRA-Fine-tuning-for-Enterprise-Document-Q-A/blob/main/results/retrieval_eval.json).
 
-### Dashboard
+| **Method**                                       | **Recall@1** | **Recall@3** | **Recall@5** | **Recall@10** | **MRR@10** | **Search latency (ms/query)** |
+| ------------------------------------------------ | -----------: | -----------: | -----------: | ------------: | ---------: | ----------------------------: |
+| Dense (FAISS, MiniLM)                            |        0.352 |        0.514 |        0.592 |         0.648 |      0.450 |                          0.31 |
+| BM25                                             |    **0.480** |    **0.708** |    **0.784** |         0.854 |  **0.610** |                          8.20 |
+| Hybrid (RRF, k=60, fetch_k=30)                   |        0.464 |        0.648 |        0.716 |     **0.856** |      0.581 |                          8.60 |
+| Hybrid, production setting (top_k=5, fetch_k=15) |            – |            – |    **0.750** |             – |          – |                          8.52 |
+
+### What the retrieval results show
+
+BM25 produced the strongest result on this particular evaluation set, achieving **0.784 Recall@5**, compared with **0.716** for the equal-weight hybrid RRF configuration.
+
+This does not mean BM25 is universally superior to hybrid retrieval. The synthetic QA questions were generated directly from chunk text, which naturally favours lexical matching. The evaluation also treats only the originating chunk as correct, meaning another overlapping chunk containing the same answer can be scored as incorrect.
+
+The hybrid configuration still provides the architectural advantage of combining semantic and lexical retrieval and is used as the primary retrieval interface for the downstream RAG variants.
+
+The production retrieval configuration uses:
+
+```text
+top_k = 5
+fetch_k = 15
+```
+
+and achieved **0.750 Recall@5** on the evaluated configuration.
+
+### Retrieval latency
+
+Search latency measures the retrieval/index-search portion only.
+
+For dense and hybrid retrieval, generating the MiniLM query embedding adds approximately **23.1 ms** on the development CPU:
+
+```text
+CPU: Intel Core i3-10110U
+Embedding model: all-MiniLM-L6-v2
+Embedding dimension: 384
+```
+
+Therefore, the reported search latency and total end-to-end latency should not be treated as the same measurement.
+
+---
+
+## Corpus and indices
+
+The corpus contains:
+
+* **60 scraped pages**
+* **1,457,978 characters** (~1.46M)
+* **48 distinct source URLs** represented in the synthetic QA set
+
+One Jira Cloud Postman collection,
+
+```text
+jiracloud.3.postman.json
+```
+
+contains approximately **973,400 characters**, or roughly 67% of the corpus.
+
+### Chunking strategies
+
+Four chunking strategies are implemented:
+
+| Strategy     | Chunks |
+| ------------ | -----: |
+| Fixed        |    818 |
+| Recursive    |    927 |
+| Semantic     |  4,287 |
+| Hierarchical |  2,193 |
+
+The hierarchical strategy contains:
+
+* 390 parent chunks
+* 1,803 child chunks
+
+The repository maintains separate retrieval indices for the chunking strategies.
+
+### Embeddings
+
+Dense retrieval uses:
+
+```text
+Model: all-MiniLM-L6-v2
+Dimensions: 384
+Normalization: L2
+FAISS index: IndexFlatIP
+```
+
+### Synthetic QA dataset
+
+The retrieval evaluation contains:
+
+```text
+500 synthetic QA pairs
+48 source URLs
+349 questions from the Jira Postman JSON
+69.8% from the Postman JSON
+```
+
+The synthetic dataset was generated from the documentation chunks and is therefore useful for controlled retrieval evaluation but should not be interpreted as a human-authored benchmark.
+
+---
+
+## Architecture
+
+```text
+                    Atlassian / Jira / Confluence Docs
+                                  |
+                                  v
+                         Document ingestion
+                                  |
+                                  v
+                    Multiple chunking strategies
+             fixed / recursive / semantic / hierarchical
+                                  |
+                                  v
+                         Dense + Sparse Indexing
+                           /              \
+                          /                \
+                         v                  v
+                  FAISS / MiniLM          BM25
+                         \                  /
+                          \                /
+                           v              v
+                       Reciprocal Rank Fusion
+                                  |
+                                  v
+                         Unified Retriever
+                                  |
+                    +-------------+-------------+
+                    |             |             |
+                    v             v             v
+              Hybrid Search  Keyword Search  Clarification
+                    |             |             |
+                    +-------------+-------------+
+                                  |
+                                  v
+                         Agentic Control Layer
+                                  |
+                                  v
+                       Retrieved Context / Tools
+                                  |
+                                  v
+                         Phi-3 Mini Generator
+                                  |
+                         +--------+--------+
+                         |                 |
+                         v                 v
+                  Base / LoRA model   Self-Critique
+                                           |
+                                           v
+                                     Correct / Retry
+                                           |
+                                           v
+                                         Answer
+```
+
+---
+
+## Retrieval architecture
+
+The retrieval system exposes dense and sparse search through a unified interface.
+
+### Dense retrieval
+
+FAISS indexes embeddings generated with:
+
+```text
+all-MiniLM-L6-v2
+```
+
+The embeddings are 384-dimensional and L2-normalized.
+
+Similarity search uses the resulting inner-product index.
+
+### Sparse retrieval
+
+BM25 provides lexical retrieval over the same document chunks.
+
+This is particularly useful for:
+
+* API names
+* parameter names
+* product terminology
+* exact documentation phrases
+* identifiers and technical keywords
+
+### Hybrid retrieval
+
+Dense and sparse results are combined using **Reciprocal Rank Fusion (RRF)** rather than directly combining raw similarity scores.
+
+The RRF score is:
+
+```text
+score(d) = Σ 1 / (k + rank(d))
+```
+
+with:
+
+```text
+k = 60
+```
+
+Both retrievers use equal weighting in the evaluated configuration.
+
+The advantage is that FAISS and BM25 scores do not need to be calibrated onto the same numerical scale.
+
+---
+
+## Agentic RAG layer
+
+The system extends conventional RAG with an agentic control layer.
+
+Instead of always following:
+
+```text
+query -> retrieve -> generate
+```
+
+the system can determine which retrieval action is appropriate for the query.
+
+Available actions include:
+
+```text
+hybrid_search
+keyword_search
+ask_clarification
+```
+
+The corrective and self-critique variants introduce additional control around retrieval and generation.
+
+### Corrective retrieval
+
+The corrective variant evaluates whether the retrieved context is sufficient for answering the query.
+
+When retrieval is weak, the query/context can be corrected before generation rather than blindly passing poor context to the language model.
+
+### Query clarification
+
+Ambiguous queries can be routed through a clarification step when the available information is insufficient to confidently identify the user's intent.
+
+### Self-critique
+
+The self-critique variant follows a:
+
+```text
+generate -> judge -> retry
+```
+
+loop.
+
+The generated answer is checked against the available context, and the system can retry when the answer does not adequately satisfy the retrieved evidence.
+
+This is an application-level self-critique mechanism rather than a reproduction of the Self-RAG paper's reflection-token architecture.
+
+### Multi-query retrieval
+
+The multi-query variant can generate alternative formulations of the user's question to improve retrieval coverage.
+
+### Query decomposition
+
+Complex questions can be broken into smaller retrieval-oriented sub-queries before generating the final answer.
+
+### HyDE-style retrieval
+
+The advanced retrieval variant uses a hypothetical-answer-style query transformation before retrieval to improve semantic matching for suitable queries.
+
+---
+
+## LoRA fine-tuning
+
+Phi-3 Mini is fine-tuned using **QLoRA/LoRA** on a synthetic enterprise QA dataset.
+
+The saved adapter is located in:
+
+```text
+lora_output/
+```
+
+### Training configuration
+
+| **Setting**           | **Value**                          |
+| --------------------- | ---------------------------------- |
+| Base model            | `microsoft/Phi-3-mini-4k-instruct` |
+| Quantization          | 4-bit NF4                          |
+| Compute               | fp16                               |
+| LoRA rank             | 16                                 |
+| LoRA alpha            | 32                                 |
+| LoRA dropout          | 0.05                               |
+| Training data         | 500 synthetic QA pairs             |
+| Batch                 | 4 per device                       |
+| Gradient accumulation | 4                                  |
+| Effective batch       | 16                                 |
+| Steps                 | 160                                |
+| Epochs                | 5                                  |
+| Optimizer             | paged AdamW 8-bit                  |
+| Learning rate         | 2e-4                               |
+| Scheduler             | cosine                             |
+| Hardware              | Kaggle T4                          |
+| Runtime               | 3,836 s (~64 min)                  |
+| Average training loss | 1.014                              |
+
+The saved adapter contains **3,145,728 trainable parameters** under the original training configuration.
+
+---
+
+## LoRA implementation
+
+The original adapter was produced using:
+
+```text
+src/llm/lora_finetune.py
+```
+
+A corrected training implementation is also included:
+
+```text
+src/llm/lora_finetune_v2.py
+```
+
+The corrected implementation addresses:
+
+* Phi-3 target-module matching
+* answer-only loss masking
+* train/test splitting
+
+The original adapter remains unchanged so that the existing artifact and evaluation results remain reproducible.
+
+The corrected training script can be used to produce a new adapter after verification and training.
+
+---
+
+## Evaluation
+
+The repository contains retrieval evaluation, generation evaluation, and RAGAS-based evaluation infrastructure.
+
+### Retrieval evaluation
+
+The retrieval benchmark compares:
+
+```text
+Dense FAISS
+BM25
+Hybrid RRF
+```
+
+using Recall@1, Recall@3, Recall@5, Recall@10, MRR@10, and search latency.
+
+### Generation evaluation
+
+The saved adapter was evaluated on 20 questions without retrieved context.
+
+The RAG pipeline was evaluated on five questions using:
+
+```text
+recursive chunking
+hybrid retrieval
+retrieved context
+```
+
+These evaluations are qualitative and are not presented as held-out generalization benchmarks because the questions originate from the training dataset.
+
+### RAGAS evaluation
+
+The evaluation harness includes RAGAS-style evaluation of:
+
+* Faithfulness
+* Answer Relevancy
+* Context Precision
+* Context Recall
+
+The purpose is to evaluate both the retrieved context and generated answer quality rather than relying solely on retrieval recall.
+
+The Streamlit dashboard exposes evaluation and retrieval traces for inspection.
+
+---
+
+## Observed model behaviour
+
+The standalone fine-tuned model can produce fluent answers but may invent technical details when it does not have retrieved context.
+
+For example, an answer for an audit-record query introduced filter parameters that differed from the stored reference answer.
+
+The RAG configuration generally follows the retrieved documentation more closely, although errors can still occur when retrieval supplies incomplete or conflicting evidence.
+
+This demonstrates the practical motivation for combining:
+
+```text
+retrieval + generation + evaluation
+```
+
+rather than relying entirely on information stored in fine-tuned model weights.
+
+---
+
+## Known issues
+
+### Fine-tuning
+
+* The original LoRA adapter only adapts `o_proj`. Native Phi-3 fuses q/k/v into `qkv_proj` and gate/up into `gate_up_proj`, so the original configured `q_proj`, `k_proj`, and `v_proj` targets did not match.
+* The saved adapter therefore contains 64 tensors corresponding to 32 layers of `o_proj` A/B matrices.
+* The original configuration produces 3,145,728 trainable parameters.
+* The corrected target-module configuration produces 25,165,824 trainable parameters.
+* The original training script includes prompt tokens in the loss because `input_ids` are copied directly into `labels`.
+* The saved generation evaluations use examples from the training dataset and therefore do not measure held-out generalization.
+* The standalone evaluation prompt differs from the training format because training includes context while the standalone evaluation does not.
+* The synthetic QA parser truncates multi-line answers because it reads one line following `ANSWER:`. 26 of the 500 answers are affected.
+
+### Retrieval and data
+
+* The Jira Postman JSON dominates the corpus, accounting for approximately 67% of corpus characters.
+* It contributes 642 of the 927 recursive chunks and 349 of the 500 synthetic QA pairs.
+* Consequently, aggregate retrieval results are heavily influenced by this source.
+* all-MiniLM-L6-v2 truncates inputs at 256 tokens.
+* 825 of 927 recursive chunks exceed that limit.
+* Approximately 48% of the tokens in an average recursive chunk fall beyond the embedder's input limit.
+* Recursive chunks average approximately 1,757 characters and 561 MiniLM word-piece tokens.
+* The observed text corresponds to approximately 3.1 characters per token, so the nominal 512-token chunk-size assumption is not an accurate representation of the actual tokenizer behaviour.
+* The scraper removes newlines by joining extracted text with spaces.
+* The BM25 tokenizer currently uses an ASCII-oriented regular expression and therefore does not support non-Latin scripts correctly.
+* Hierarchical parent expansion currently re-reads `chunks_hierarchical.json` for each retrieved result.
+* The scraper does not currently check `robots.txt`.
+* BM25 requires a full rebuild when documents are updated.
+* The synthetic QA dataset was generated from chunks and was not independently validated by human annotators.
+
+The current chunking, scraper, and BM25 implementations have been retained because changing them would invalidate the saved indices and existing retrieval measurements.
+
+---
+
+## Roadmap
+
+* Retrain Phi-3 with the corrected LoRA target modules and answer-only loss.
+* Evaluate the corrected adapter on a held-out 425/75 train-test split.
+* Expand RAGAS evaluation and add claim-level faithfulness checks.
+* Add a stronger cross-encoder reranker over the fused candidate list.
+* Improve the tool-routing agent between `hybrid_search`, `keyword_search`, and `ask_clarification`.
+* Add Unicode-aware BM25 tokenization.
+* Evaluate shorter chunks or a longer-context embedding model.
+* Tune fusion weights and retrieval parameters using a held-out evaluation set.
+* Improve evaluation with human-authored enterprise questions.
+* Expand local inference/deployment support using `llama.cpp`.
+* Improve the Streamlit dashboard with richer retrieval traces and model/evaluation comparisons.
+
+---
+
+## Project structure
+
+```text
+.
+├── config.py
+├── eval_retrieval.py                 # Dense vs BM25 vs hybrid evaluation
+├── dashboard.py                      # Streamlit evaluation dashboard
+├── requirements.txt
+│
+├── data/
+│   ├── raw/
+│   │   └── scraped_docs.json
+│   ├── processed/
+│   │   └── ...                       # Chunks, embeddings and retrieval indices
+│   └── synthetic_qa/
+│       └── synthetic_qa_pairs.json
+│
+├── results/
+│   └── retrieval_eval.json
+│
+├── lora_output/                      # Saved LoRA adapter and evaluation artifacts
+│
+├── src/
+│   ├── ingestion/
+│   │   ├── scraper.py
+│   │   └── chunker.py
+│   │
+│   ├── embeddings/
+│   │   └── encoder.py
+│   │
+│   ├── retrieval/
+│   │   ├── faiss_store.py
+│   │   ├── bm25_store.py
+│   │   └── hybrid.py
+│   │
+│   ├── llm/
+│   │   ├── hf_client.py
+│   │   ├── lora_finetune.py
+│   │   └── lora_finetune_v2.py
+│   │
+│   ├── rag/
+│   │   ├── base_rag.py
+│   │   ├── naive_rag.py
+│   │   └── ...                       # Corrective, multi-query,
+│   │                                  # decomposition, self-critique variants
+│   │
+│   └── evaluation/
+│       ├── synthetic_qa.py
+│       └── finetuned_eval.py
+│
+└── ...
+```
+
+---
+
+## Design decisions
+
+### Why hybrid retrieval?
+
+Dense and sparse retrieval capture different types of relevance.
+
+FAISS provides semantic similarity, while BM25 is particularly effective for exact technical terminology, API names, parameters, and documentation phrases.
+
+RRF allows their rankings to be combined without requiring the raw scores to be calibrated to the same scale.
+
+### Why RRF?
+
+FAISS similarity and BM25 scores exist on different numerical scales.
+
+Rather than directly adding those scores, RRF operates on rank positions:
+
+```text
+score(d) = Σ 1 / (k + rank(d))
+```
+
+with:
+
+```text
+k = 60
+```
+
+This makes the fusion less dependent on the numerical scale of either retriever.
+
+### Why QLoRA?
+
+The Phi-3 Mini model is quantized to 4-bit NF4 while low-rank adapter weights are trained on top of the frozen base model.
+
+This substantially reduces the memory requirement compared with full model fine-tuning and allows training on a single Kaggle T4.
+
+### Why an agentic layer?
+
+A conventional RAG system follows a mostly fixed pipeline:
+
+```text
+query -> retrieve -> generate
+```
+
+Enterprise documentation queries are not always equally suited to one retrieval strategy.
+
+The agentic layer allows the system to:
+
+* select or combine retrieval tools
+* identify weak retrieval
+* clarify ambiguous queries
+* reformulate queries
+* critique generated answers
+* retry when additional retrieval is required
+
+This makes the retrieval-generation process adaptive rather than completely fixed.
+
+### Native Phi-3 implementation
+
+The system uses the native Transformers implementation of Phi-3 without requiring `trust_remote_code=True`.
+
+Enabling remote code on the tested Phi-3 build resulted in a rope-scaling configuration error:
+
+```text
+KeyError: 'type'
+```
+
+---
+
+## Running the project
+
+### Retrieval evaluation
+
+The retrieval evaluation runs on CPU and does not require Phi-3 generation.
+
+Create an environment:
+
+```bash
+python -m venv .venv
+```
+
+Windows:
+
+```bash
+.venv\Scripts\activate
+```
+
+Other systems:
+
+```bash
+source .venv/bin/activate
+```
+
+Install CPU PyTorch:
+
+```bash
+pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
+```
+
+Install retrieval dependencies:
+
+```bash
+pip install sentence-transformers faiss-cpu rank_bm25 numpy tqdm pandas streamlit peft
+```
+
+Run:
+
+```bash
+python eval_retrieval.py
+```
+
+The script downloads `all-MiniLM-L6-v2` when required, evaluates the retrieval configurations, prints the results table, and writes:
+
+```text
+results/retrieval_eval.json
+```
+
+The committed indices under `data/processed/` are used as provided.
+
+Alternatively:
+
+```bash
+pip install -r requirements.txt
+```
+
+installs the pinned project dependencies, including the GPU training packages.
+
+---
+
+## Dashboard
+
+Run:
 
 ```bash
 streamlit run dashboard.py
 ```
 
-### Training on Kaggle (GPU T4, internet on)
+The Streamlit dashboard provides access to:
 
-`lora_finetune_v2.py` requires a CUDA GPU. It has **not been run**: module matching, label masking and the split were checked locally against the Phi-3 config and the saved tokenizer, but no training, generation or held-out evaluation has been done with it.
+* Retrieval results
+* Evaluation outputs
+* Retrieval traces
+* RAG behaviour
+* Model responses
+* Comparative analysis of retrieval configurations
+
+The dashboard can load the LoRA adapter through `HFClient` when an adapter path is provided.
+
+---
+
+## LoRA training on Kaggle
+
+The corrected training implementation requires a CUDA-enabled GPU.
+
+The recommended environment is a Kaggle T4 with internet access enabled.
+
+Install dependencies:
 
 ```bash
-pip install -r requirements.txt     # training section: accelerate, bitsandbytes, datasets, peft
-python -m src.llm.lora_finetune_v2 --verify-only   # loads the 4-bit model, prints matched modules and trainable params, exits
-python -m src.llm.lora_finetune_v2                 # trains; writes lora_output_v2/ and data/synthetic_qa/{train,test}_qa_pairs.json
+pip install -r requirements.txt
 ```
 
-The original adapter in `lora_output/` was produced by `src/llm/lora_finetune.py`, which is left unchanged so that artifact stays reproducible. Pass `adapter_path="lora_output_v2"` (or `"lora_output"`) to `HFClient` to use an adapter at inference time.
+Verify the corrected configuration:
+
+```bash
+python -m src.llm.lora_finetune_v2 --verify-only
+```
+
+The verification step loads the 4-bit model, checks matched LoRA modules, reports trainable parameters, and exits without training.
+
+To train:
+
+```bash
+python -m src.llm.lora_finetune_v2
+```
+
+The corrected implementation writes:
+
+```text
+lora_output_v2/
+```
+
+and produces the corresponding train/test QA split under:
+
+```text
+data/synthetic_qa/
+```
+
+The original adapter in:
+
+```text
+lora_output/
+```
+
+was produced by:
+
+```text
+src/llm/lora_finetune.py
+```
+
+and is intentionally retained unchanged for reproducibility.
+
+---
+
+## Inference
+
+The `HFClient` supports loading the base Phi-3 model or a LoRA adapter through the adapter path.
+
+Example:
+
+```python
+HFClient(adapter_path="lora_output")
+```
+
+or, after retraining:
+
+```python
+HFClient(adapter_path="lora_output_v2")
+```
+
+The same retrieval interface can then be used to provide relevant enterprise context to the generator.
+
+---
+
+## Technologies
+
+Python · LangChain · FAISS · BM25 · PEFT (LoRA/QLoRA) · llama.cpp · RAGAS · Streamlit · Hugging Face Transformers · PyTorch
+
+---
+
+## Key capabilities
+
+* Enterprise document ingestion from Jira and Confluence documentation
+* Four document chunking strategies
+* Dense semantic retrieval with FAISS
+* Sparse lexical retrieval with BM25
+* Hybrid retrieval with Reciprocal Rank Fusion
+* Query routing and clarification
+* Corrective RAG
+* Multi-query retrieval
+* Query decomposition
+* Self-critique generation and retry
+* Phi-3 Mini LoRA/QLoRA fine-tuning
+* RAGAS-based evaluation
+* Retrieval evaluation with Recall@K and MRR
+* Streamlit evaluation dashboard
+* Retrieval traces for debugging and analysis
+* Local inference/deployment exploration with llama.cpp
+
+---
+
+## Summary
+
+This project implements an **agentic RAG system for enterprise document question answering**, combining retrieval, fine-tuning, evaluation, and adaptive control.
+
+The retrieval layer unifies FAISS dense search and BM25 sparse search through Reciprocal Rank Fusion. The generation layer uses Phi-3 Mini with LoRA/QLoRA fine-tuning, while the agentic layer adds query clarification, corrective retrieval, multi-query retrieval, decomposition, and self-critique.
+
+On the current synthetic retrieval evaluation, BM25 achieves **0.784 Recall@5**, while the evaluated hybrid RRF configuration achieves **0.716 Recall@5**. This result is explicitly retained rather than hiding the fact that the hybrid assumption did not outperform BM25 on this particular dataset.
+
+The project therefore treats evaluation as part of the system design: retrieval strategies are measured, weaknesses are documented, and the architecture provides clear paths for reranking, improved chunking, held-out evaluation, stronger faithfulness measurement, and adaptive tool routing.
