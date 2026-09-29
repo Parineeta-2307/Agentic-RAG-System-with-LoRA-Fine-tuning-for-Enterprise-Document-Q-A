@@ -1,0 +1,72 @@
+{
+  "strategy": "recursive",
+  "n_queries": 500,
+  "embedding_model": "all-MiniLM-L6-v2",
+  "results": [
+    {
+      "method": "dense",
+      "recall@1": 0.352,
+      "recall@3": 0.514,
+      "recall@5": 0.592,
+      "recall@10": 0.648,
+      "mrr@10": 0.45,
+      "avg_latency_ms": 0.31
+    },
+    {
+      "method": "bm25",
+      "recall@1": 0.48,
+      "recall@3": 0.708,
+      "recall@5": 0.784,
+      "recall@10": 0.854,
+      "mrr@10": 0.61,
+      "avg_latency_ms": 8.2
+    },
+    {
+      "method": "hybrid_rrf",
+      "recall@1": 0.464,
+      "recall@3": 0.648,
+      "recall@5": 0.716,
+      "recall@10": 0.856,
+      "mrr@10": 0.581,
+      "avg_latency_ms": 8.6
+    }
+  ],
+  "production_setting": {
+    "method": "hybrid_rrf_production (top_k=5, fetch_k=15)",
+    "recall@5": 0.75,
+    "avg_latency_ms": 8.52
+  },
+  "query_encoding_avg_ms": 23.13,
+  "by_source": {
+    "postman_json": {
+      "n": 349,
+      "dense": {
+        "recall@5": 0.496,
+        "mrr@10": 0.356
+      },
+      "bm25": {
+        "recall@5": 0.728,
+        "mrr@10": 0.556
+      },
+      "hybrid_rrf": {
+        "recall@5": 0.645,
+        "mrr@10": 0.505
+      }
+    },
+    "other_pages": {
+      "n": 151,
+      "dense": {
+        "recall@5": 0.815,
+        "mrr@10": 0.669
+      },
+      "bm25": {
+        "recall@5": 0.914,
+        "mrr@10": 0.735
+      },
+      "hybrid_rrf": {
+        "recall@5": 0.881,
+        "mrr@10": 0.756
+      }
+    }
+  }
+}
