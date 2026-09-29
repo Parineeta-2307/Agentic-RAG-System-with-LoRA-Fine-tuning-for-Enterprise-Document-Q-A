@@ -2,21 +2,12 @@ from pathlib import Path
 import json
 import sys
 
-PROJECT_ROOT = Path("/kaggle/working/agentic_rag")
-sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-DATA_PATH = (
-    PROJECT_ROOT
-    / "data"
-    / "synthetic_qa"
-    / "synthetic_qa_pairs.json"
-)
+from config import SYNTHETIC_QA_DIR, LORA_OUTPUT_DIR
 
-OUTPUT_PATH = (
-    PROJECT_ROOT
-    / "lora_output"
-    / "evaluation_results.json"
-)
+DATA_PATH = SYNTHETIC_QA_DIR / "synthetic_qa_pairs.json"
+OUTPUT_PATH = Path(LORA_OUTPUT_DIR) / "evaluation_results.json"
 
 
 def load_qa_pairs():
